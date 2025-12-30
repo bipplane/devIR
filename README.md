@@ -214,7 +214,16 @@ venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 ```
 
-Set your environment variables:
+### Configure API Keys
+
+1. Copy the example environment file:
+
+```bash
+copy .env.example .env  # Windows
+# cp .env.example .env  # Linux/Mac
+```
+
+2. Edit `.env` and add your API keys:
 
 ```bash
 # Required - Google Gemini (FREE)
@@ -226,11 +235,12 @@ GOOGLE_API_KEY=your_gemini_api_key
 TAVILY_API_KEY=your_tavily_api_key
 ```
 
-Or copy the example file:
+> **Note:** The application automatically loads the `.env` file on startup using `python-dotenv`. Make sure the `.env` file is in the project root directory.
+
+### Run the Agent
 
 ```bash
-copy .env.example .env  # Windows
-# cp .env.example .env  # Linux/Mac
+python -m src.main
 ```
 
 ## Project Structure
