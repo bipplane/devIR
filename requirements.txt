@@ -1,0 +1,20 @@
+# Package dependencies for DevOps Incident Responder
+# Install with: pip install -r requirements.txt
+
+# Core LangGraph framework
+langgraph>=0.0.30
+langchain-core>=0.1.0
+
+# Search tool (FREE tier: 1000 searches/month)
+tavily-python>=0.3.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# LLM Provider - Google Gemini (FREE tier available)
+google-genai
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# black>=23.0.0
+# ruff>=0.1.0
