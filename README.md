@@ -1,6 +1,8 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yourusername/devops-incident-responder/main/assets/logo.png" alt="DevOps Incident Responder" width="400"/>
+  <img src="https://github.com/user-attachments/assets/8af2c85c-7fe8-4f2c-952e-56ba7d18ecbb" alt="DevOps Incident Responder" width="400"/>
 </p>
+
+
 
 <p align="center">
   <strong>An autonomous, graph-based AI agent that diagnoses runtime errors like a Junior SRE.</strong>
