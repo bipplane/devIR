@@ -194,6 +194,30 @@ class IncidentResponder:
         )
         self.app = compile_graph(self.workflow)
     
+    def _truncate_at_newline(self, text: str, max_chars: int) -> str:
+        """
+        Truncate text at the next newline after max_chars, or return full text if short.
+        
+        This produces cleaner output than cutting mid-sentence.
+        """
+        if len(text) <= max_chars:
+            return text
+        
+        # Find the next newline after max_chars
+        next_newline = text.find('\n', max_chars)
+        
+        if next_newline != -1 and next_newline < max_chars + 100:
+            # Found a newline within reasonable distance, cut there
+            return text[:next_newline] + "\n  ..."
+        else:
+            # No newline nearby, find the last complete line before max_chars
+            last_newline = text.rfind('\n', 0, max_chars)
+            if last_newline > max_chars // 2:
+                return text[:last_newline] + "\n  ..."
+            else:
+                # No good newline, just cut at max_chars
+                return text[:max_chars] + "..."
+    
     def investigate(self, error_log: str, max_iterations: int = 3) -> AgentState:
         """
         Investigate an error and propose a solution.
@@ -215,7 +239,7 @@ class IncidentResponder:
             print("\n" + "="*60)
             print("INCIDENT RESPONDER AGENT STARTING")
             print("="*60)
-            print(f"\nInput Error Log:\n{error_log[:500]}...")
+            print(f"\nInput Error Log:\n{self._truncate_at_newline(error_log, 400)}")
         
         # Execute the workflow
         try:
@@ -233,39 +257,25 @@ class IncidentResponder:
     def _print_summary(self, state: AgentState):
         """Print a summary of the investigation results."""
         print("\n" + "="*60)
-        print("INVESTIGATION SUMMARY")
+        print("INVESTIGATION COMPLETE")
         print("="*60)
         
         print(f"\nError Type: {state.get('error_type', 'unknown')}")
-        print(f"Summary: {state.get('error_summary', 'N/A')}")
-        print(f"Research Iterations: {state.get('iterations', 0)}")
         print(f"Solution Confidence: {state.get('solution_confidence', 0):.0%}")
+        print(f"Research Iterations: {state.get('iterations', 0)}")
         
-        print("\n" + "-"*40)
-        print("PROPOSED SOLUTION")
-        print("-"*40)
-        print(state.get("proposed_solution", "No solution generated"))
-        
-        if state.get("solution_steps"):
-            print("\n" + "-"*40)
-            print("STEPS TO IMPLEMENT")
-            print("-"*40)
-            for i, step in enumerate(state["solution_steps"], 1):
-                print(f"  {i}. {step}")
-        
-        if state.get("code_changes"):
-            print("\n" + "-"*40)
-            print("CODE CHANGES")
-            print("-"*40)
-            print(state["code_changes"])
+        # Show brief solution preview
+        solution = state.get("proposed_solution", "No solution generated")
+        preview = self._truncate_at_newline(solution, 200)
+        print(f"\nSolution Preview:\n{preview}")
         
         if state.get("needs_human_approval"):
-            print("\n" + "="*40)
-            print("HUMAN APPROVAL REQUIRED")
-            print("="*40)
-            print(f"Reason: {state.get('pending_action', 'No details')}")
+            print("\n[!] HUMAN APPROVAL REQUIRED")
+            print(f"    Reason: {state.get('pending_action', 'No details')}")
         
         print("\n" + "="*60)
+        print("Full details will be saved to the incident report.")
+        print("="*60)
 
 
 def quick_investigate(error_log: str, **kwargs) -> AgentState:

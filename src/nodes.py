@@ -100,8 +100,6 @@ class NodeFactory:
             system_prompt=prompts.DIAGNOSTICIAN_SYSTEM
         )
         
-        self._log(f"\nDiagnosis Response:\n{response[:500]}...")
-        
         # Parse the structured response
         parsed = parse_llm_response(response, [
             "ERROR_TYPE",
@@ -136,15 +134,18 @@ class NodeFactory:
         
         # Log the findings
         self._log(f"\n[OK] Error Type: {parsed.get('error_type', 'unknown')}")
-        self._log(f"Summary: {parsed.get('error_summary', 'N/A')[:100]}...")
-        self._log(f"Will search for: {search_queries}")
+        self._log(f"Summary: {parsed.get('error_summary', 'N/A')}")
+        if search_queries:
+            self._log("Will search for:")
+            for i, q in enumerate(search_queries[:3], 1):
+                self._log(f"  {i}. {q}")
         
         # Return state updates
         return {
             "error_type": parsed.get("error_type", "unknown"),
             "error_summary": parsed.get("error_summary", "Unable to summarise error"),
             "affected_components": affected_components,
-            "search_queries": search_queries[:3],  # Limit to 3 queries
+            "search_queries": search_queries[:5],
             "files_to_check": files_to_check,
             "messages": state.get("messages", []) + [f"[Diagnostician] {response}"],
             "status": "researching"
@@ -166,11 +167,15 @@ class NodeFactory:
         self._log("="*60)
         
         all_results = []
+        queries = state.get("search_queries", [])
+        
+        if queries:
+            self._log("\nSearching:")
+            for query in queries:
+                self._log(f'  - "{query}"')
         
         # Execute each search query
-        for query in state.get("search_queries", []):
-            self._log(f"\nSearching: {query}")
-            
+        for query in queries:
             try:
                 results = self.search_tool.search_technical(query, max_results=3)
                 for result in results:
@@ -194,8 +199,6 @@ class NodeFactory:
             prompt=prompt,
             system_prompt=prompts.RESEARCHER_SYSTEM
         )
-        
-        self._log(f"\nResearch Analysis:\n{response[:500]}...")
         
         # Parse response
         parsed = parse_llm_response(response, [
@@ -299,7 +302,7 @@ class NodeFactory:
             system_prompt=prompts.CODE_AUDITOR_SYSTEM
         )
         
-        self._log(f"\nCode Analysis:\n{response[:500]}...")
+        self._log("\n[OK] Code analysis complete")
         
         return {
             "code_context": code_context + f"\n\n[Analysis]\n{response}",
@@ -334,8 +337,6 @@ class NodeFactory:
             prompt=prompt,
             system_prompt=prompts.SOLVER_SYSTEM
         )
-        
-        self._log(f"\nSolution:\n{response}")
         
         # Parse response
         parsed = parse_llm_response(response, [
