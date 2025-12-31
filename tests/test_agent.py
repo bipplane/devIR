@@ -401,6 +401,87 @@ class TestNodesMocked:
         assert "Destructive" in result["pending_action"]
 
 
+class TestStreaming:
+    """Tests for streaming LLM output."""
+    
+    def test_llm_has_generate_stream_method(self):
+        """Test that LLM class has streaming capability."""
+        from src.llm import GeminiLLM
+        
+        llm = GeminiLLM(api_key="test_key")
+        assert hasattr(llm, 'generate_stream')
+        assert callable(llm.generate_stream)
+    
+    def test_base_llm_requires_stream_method(self):
+        """Test that BaseLLM abstract class requires generate_stream."""
+        from src.llm import BaseLLM
+        import inspect
+        
+        # Check that generate_stream is an abstract method
+        assert 'generate_stream' in BaseLLM.__abstractmethods__
+    
+    def test_generate_solution_explanation_yields_chunks(self):
+        """Test that the generator actually yields data chunk by chunk."""
+        from src.graph import IncidentResponder
+        from src.llm import GeminiLLM
+        
+        # Setup mock LLM
+        mock_llm = MagicMock(spec=GeminiLLM)
+        fake_stream = iter(["Checking ", "database ", "connection..."])
+        mock_llm.generate_stream.return_value = fake_stream
+        
+        # Create responder and inject mock
+        with patch('src.graph.get_llm', return_value=mock_llm):
+            with patch('src.graph.TavilySearchTool'):
+                with patch('src.graph.FileReaderTool'):
+                    responder = IncidentResponder(verbose=False)
+                    responder.llm = mock_llm
+        
+        # Create minimal state
+        state = create_initial_state("test error")
+        state["error_type"] = "database"
+        state["error_summary"] = "Connection failed"
+        state["proposed_solution"] = "Restart database"
+        state["solution_steps"] = ["Step 1", "Step 2"]
+        
+        # Call the generator and collect results
+        generator = responder.generate_solution_explanation(state)
+        results = list(generator)
+        
+        # Assert chunks were yielded correctly
+        assert results == ["Checking ", "database ", "connection..."]
+        assert len(results) == 3
+        
+        # Verify LLM was called with correct error context
+        call_args = mock_llm.generate_stream.call_args
+        prompt = call_args[0][0]
+        assert "database" in prompt
+        assert "Connection failed" in prompt
+    
+    def test_generate_solution_explanation_is_generator(self):
+        """Test that the method returns a generator, not a list."""
+        from src.graph import IncidentResponder
+        from src.llm import GeminiLLM
+        import types
+        
+        mock_llm = MagicMock(spec=GeminiLLM)
+        mock_llm.generate_stream.return_value = iter(["chunk"])
+        
+        with patch('src.graph.get_llm', return_value=mock_llm):
+            with patch('src.graph.TavilySearchTool'):
+                with patch('src.graph.FileReaderTool'):
+                    responder = IncidentResponder(verbose=False)
+                    responder.llm = mock_llm
+        
+        state = create_initial_state("error")
+        state["error_type"] = "test"
+        
+        result = responder.generate_solution_explanation(state)
+        
+        # Should be a generator, not a list
+        assert isinstance(result, types.GeneratorType)
+
+
 # Integration test (requires API keys)
 @pytest.mark.skipif(True, reason="Requires API keys - run manually with: pytest tests/ -v -k Integration")
 class TestIntegration:
