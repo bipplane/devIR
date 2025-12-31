@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/8af2c85c-7fe8-4f2c-952e-56ba7d18ecbb" alt="DevOps Incident Responder" width="400"/>
+  <img src="https://github.com/user-attachments/assets/3d98dfc8-3e7b-490a-9fe4-14a79ee9845d" alt="DevIR" width="480"/>
 </p>
 
 
