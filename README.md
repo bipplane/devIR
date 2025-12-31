@@ -10,9 +10,9 @@
 
 <p align="center">
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+"></a>
-  <a href="https://github.com/yourusername/devops-incident-responder/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT-green.svg" alt="Licence: MIT"></a>
+  <a href="https://github.com/bipplane/devops-incident-responder/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT-green.svg" alt="Licence: MIT"></a>
   <a href="https://github.com/langchain-ai/langgraph"><img src="https://img.shields.io/badge/LangGraph-state%20machine-purple.svg" alt="LangGraph"></a>
-  <img src="https://img.shields.io/badge/tests-24%20passing-brightgreen.svg" alt="Tests: 24 passing">
+  <a href="https://github.com/bipplane/devops-incident-responder/actions/workflows/test.yml"><img src="https://github.com/bipplane/devops-incident-responder/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
 ---
@@ -205,7 +205,7 @@ The LLM interface is abstracted behind `BaseLLM`. Swap providers without changin
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/devops-incident-responder.git
+git clone https://github.com/bipplane/devops-incident-responder.git
 cd devops-incident-responder
 
 # Create virtual environment
