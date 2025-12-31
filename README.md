@@ -10,17 +10,18 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+"></a>
   <a href="https://github.com/yourusername/devops-incident-responder/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT-green.svg" alt="Licence: MIT"></a>
   <a href="https://github.com/langchain-ai/langgraph"><img src="https://img.shields.io/badge/LangGraph-state%20machine-purple.svg" alt="LangGraph"></a>
+  <img src="https://img.shields.io/badge/tests-24%20passing-brightgreen.svg" alt="Tests: 24 passing">
 </p>
 
 ---
 
 ## The Problem
 
-When a production error occurs at 2am, engineers face the same repetitive process: read the stack trace, search for solutions, check the code, and implement a fix. This workflow is predictable enough to automate, yet complex enough that simple scripts fail.
+When prod goes down at 2am, engineers face the same repetitive process: read the stack trace, search for solutions, check the code, and implement a fix. This workflow is predictable enough to automate, yet complex enough that simple scripts fail.
 
 Traditional AI assistants treat this as a single-shot problem. You paste an error, get a response, and hope it works. But real debugging is iterative. You search, find partial answers, refine your understanding, and try again.
 
-This project aims to introduce a **state machine architecture** for incident response. Instead of a black-box agent, you get an observable, controllable workflow where each step is explicit. The agent can loop back to gather more information when its confidence is low, and it pauses for human approval before executing anything destructive.
+This project aims to introduce a **state machine architecture** for incident response. Instead of a black-box agent, you get an observable, controllable workflow where each step is explicitly walked through. The agent can loop back to gather more information when its confidence is low, as well as pause for human approval before executing anything destructive.
 
 ## Quick Start
 
@@ -149,7 +150,7 @@ classDiagram
 
 ### State Machine Architecture
 
-Unlike black-box agents, where you pray to the Cursor God and hope the AI figures it out, this project uses **LangGraph** to define an explicit state machine. Every node is a function that reads from and writes to a typed state object. Every edge is a deliberate transition. You can trace exactly how information flows through the system.
+Unlike black-box agents, where you pray to the Cursor God after every prompt in hopes that the AI figures it out, this project uses **LangGraph** to define an explicit state machine. Every node is a function that reads from and writes to a typed state object. Every edge is a deliberate transition. You can trace exactly how information flows through the system.
 
 ```python
 class AgentState(TypedDict):
@@ -163,7 +164,7 @@ class AgentState(TypedDict):
 
 ### Cyclical Graph Flows
 
-Real debugging is iterative. If the Solver produces a low-confidence answer, the graph loops back to the Webscraper with a refined query. This self-correction continues until either (1) confidence exceeds the threshold, (2) max iterations are reached, or (3) the solution is accepted.
+Real debugging is an undoubtedly an iterative process. If a low confidence answer is produced, the graph loops back to the Webscraper with a more refined query for better results. This self-correction mechanism continues until either: confidence exceeds threshold,max iterations are reached, or the proposed solution is accepted.
 
 ```python
 def check_solution_confidence(state: AgentState) -> str:
@@ -176,7 +177,7 @@ def check_solution_confidence(state: AgentState) -> str:
 
 ### Human-in-the-Loop
 
-The agent pauses before executing destructive operations. If the proposed solution involves `DROP TABLE`, `rm -rf`, or similar commands, the workflow routes to a human approval checkpoint. The engineer sees exactly what the agent wants to do and can approve or abort.
+The agent pauses before executing destructive operations. If the proposed solution involves `DROP TABLE`, `rm -rf`, or similar commands, the workflow routes to a human approval checkpoint. The engineer sees exactly what the agent wants to do, why it wants to do it, and can approve or abort this action.
 
 ```
 HUMAN APPROVAL REQUIRED
@@ -191,13 +192,13 @@ Type 'yes' to approve or 'no' to abort:
 
 The agent has two primary tools:
 
-1. **TavilySearchTool**: Searches the web for StackOverflow answers, documentation, and blogposts. Tavily is optimised for AI agents and provides clean, structured results.
+1. **TavilySearchTool**: Searches the web for StackOverflow answers, documentation, and blogposts. Tavily is optimised for AI agents and provides clean, structured results. As of writing this, it has a free plan that allows limited monthly API calls, perfect for personal projects.
 
 2. **FileReaderTool**: Safely reads files from your codebase. It has security guards to block access to `.env`, secrets, as well as other sensitive files.
 
 ### Framework Agnostic Design
 
-The LLM interface is abstracted behind `BaseLLM`. Swap providers without changing the graph logic. The default is Google Gemini (free tier cuz I'm just a broke uni student), but the architecture supports any LLM that can follow structured prompts.
+The LLM interface is abstracted behind `BaseLLM`. Swap providers without changing the graph logic. The default is Google Gemini (free tier since I'm just a broke uni student), but the architecture supports any LLM that can follow structured prompts.
 
 ## Installation
 
@@ -242,6 +243,34 @@ TAVILY_API_KEY=your_tavily_api_key
 ```bash
 python -m src.main
 ```
+
+## Testing Strategy
+
+The project includes a comprehensive test suite demonstrating production-grade testing practices.
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run specific test class
+pytest tests/test_agent.py::TestNodesMocked -v
+```
+
+| Test Category | Description |
+|--------------|-------------|
+| **Unit Tests** | State management, JSON/text parsing, routing logic |
+| **LLM Resilience** | Handles "LLM drift" - markdown blocks, thinking tags, malformed output |
+| **Mocked Nodes** | Full node testing without API calls using `unittest.mock` |
+| **Security** | Path traversal blocking, `.env` access prevention, credential protection |
+| **Integration** | End-to-end workflow (skipped in CI/CD to preserve API credits) |
+
+### Why This Matters
+
+Most AI projects skip testing because "the LLM is unpredictable." This project proves you can infact, isolate and test every layer:
+
+- **Parse layer**: Does `parse_json_response` handle garbage?
+- **Logic layer**: Does the routing function send low-confidence to refinement?
+- **Security layer**: Can the agent read `.env` files? (It cannot.)
 
 ## Project Structure
 
@@ -323,7 +352,7 @@ Higher-level frameworks abstract away the control flow. You define agents and ho
 
 ### Compared to RAG Pipelines
 
-RAG is retrieval-focused. This is action-focused. The agent doesn't just find information; it synthesises a solution, proposes code changes, and optionally executes them with human oversight.
+RAG is retrieval-focused. This is action-focused. The agent doesn't just find information, it also synthesises a solution, proposes code changes, and optionally executes them with human oversight.
 
 ## Licence
 
@@ -331,6 +360,15 @@ MIT Licence - use this for your portfolio, interviews, or production systems.
 
 ---
 
+## Learning Outcomes
+
+My takeaways from building this project:
+- The usage of mock node tests help to prove that the internal logic works, without using API calls (CI/CD-friendly)
+- Implementation of security tests (tool safety) demonstrates awareness of DevSecOps to prevent leakage of sensitive info such as .env files or secrets
+- API credits are precious, and thus it is important to skip integration tests in CI to preserve these credits
+
+---
+
 <p align="center">
-  Built to demonstrate production-grade AI agent architecture.
+  <em>Built as a portfolio project demonstrating production-grade AI agent architecture.</em>
 </p>
