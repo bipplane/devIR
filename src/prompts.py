@@ -309,3 +309,37 @@ HUMAN_APPROVAL_PROMPT = """A solution requires human review before execution.
 Please respond with: APPROVED, REJECTED, or MODIFY
 
 If MODIFY, explain what changes you want."""
+
+
+# =============================================================================
+# STREAMING EXPLANATION PROMPT (v2.0)
+# =============================================================================
+
+EXPLANATION_SYSTEM = """You are a helpful DevOps engineer explaining a solution to a colleague.
+Be clear, practical, and friendly. Use bullet points and code blocks where helpful."""
+
+EXPLANATION_PROMPT = """Based on this investigation, provide a clear, human-readable explanation.
+
+<error_type>
+{error_type}
+</error_type>
+
+<error_summary>
+{error_summary}
+</error_summary>
+
+<proposed_solution>
+{proposed_solution}
+</proposed_solution>
+
+<solution_steps>
+{solution_steps}
+</solution_steps>
+
+Provide a conversational explanation that:
+1. Explains what went wrong in plain English
+2. Walks through the fix step by step
+3. Mentions any warnings or caveats
+4. Ends with how to verify the fix worked
+
+Keep it concise but thorough. Use markdown formatting."""

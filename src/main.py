@@ -41,7 +41,7 @@ def print_banner():
 |         DEVOPS INCIDENT RESPONDER AGENT                              |
 |                                                                      |
 |         Autonomous Error Diagnosis & Resolution                      |
-|         Built with LangGraph | State Machine Architecture           |
+|         Built with LangGraph | State Machine Architecture            |
 |                                                                      |
 +======================================================================+
     """
@@ -204,14 +204,30 @@ def interactive_mode(responder: IncidentResponder):
     try:
         result = responder.investigate(error_log)
         
+        # Offer to stream a detailed explanation
+        explain = input("\nStream detailed explanation? (y/n): ").strip().lower()
+        if explain == "y":
+            print("\n" + "="*60)
+            print("SOLUTION EXPLANATION")
+            print("="*60 + "\n")
+            
+            # Presentation layer: print chunks as they arrive
+            for chunk in responder.generate_solution_explanation(result):
+                print(chunk, end="", flush=True)
+            print("\n")
+        
         # Ask if user wants to save the report
         save = input("\nSave report to file? (y/n): ").strip().lower()
         if save == "y":
             save_report(result)
             
+    except KeyboardInterrupt:
+        print("\n\nInvestigation cancelled by user.")
+        return
     except Exception as e:
         print(f"\nError during investigation: {e}")
-        raise
+        print("Please check your API keys and internet connection.")
+        return  # Return to menu safely instead of crashing
 
 
 def save_report(state: AgentState, filename: Optional[str] = None):

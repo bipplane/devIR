@@ -2,10 +2,11 @@
 LLM Interface
 
 Provides an interface for interacting with Google Gemini.
+Supports both blocking and streaming generation.
 """
 
 import os
-from typing import Optional
+from typing import Optional, Iterator
 from abc import ABC, abstractmethod
 
 
@@ -15,6 +16,11 @@ class BaseLLM(ABC):
     @abstractmethod
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         """Generate a response from the LLM."""
+        pass
+    
+    @abstractmethod
+    def generate_stream(self, prompt: str, system_prompt: Optional[str] = None) -> Iterator[str]:
+        """Generate a streaming response from the LLM."""
         pass
 
 
@@ -53,6 +59,32 @@ class GeminiLLM(BaseLLM):
             contents=full_prompt
         )
         return response.text
+    
+    def generate_stream(self, prompt: str, system_prompt: Optional[str] = None) -> Iterator[str]:
+        """
+        Generate a streaming response from the LLM.
+        
+        Yields text chunks as they're generated. Use for real-time output.
+        
+        Args:
+            prompt: The user prompt
+            system_prompt: Optional system prompt
+            
+        Yields:
+            Text chunks as they're generated
+        """
+        client = self._get_client()
+        
+        full_prompt = prompt
+        if system_prompt:
+            full_prompt = f"{system_prompt}\n\n{prompt}"
+        
+        for chunk in client.models.generate_content_stream(
+            model=self.model,
+            contents=full_prompt
+        ):
+            if chunk.text:
+                yield chunk.text
 
 
 def get_llm(provider: str = "gemini", **kwargs) -> BaseLLM:
