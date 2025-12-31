@@ -20,9 +20,34 @@
 
 ## The Problem
 
-When prod goes down at 2am, engineers face the same repetitive process: read the stack trace, search for solutions, check the code, and implement a fix. This workflow is predictable enough to automate, yet complex enough that simple scripts fail.
+When prod goes down at 2am, engineers face the same repetitive process:
 
-Traditional AI assistants treat this as a single-shot problem. You paste an error, get a response, and hope it works. But real debugging is iterative. You search, find partial answers, refine your understanding, and try again.
+```
+         ┌──────────────────────────────────────────────────────────────────────────┐
+         │                                                                          │                                                                          
+         ▼                                                                          │ 
+┌─────────────────────────────────────────────────────────────────────────┐         │
+│  Read stack trace  │ ──> │ Diagnose issue │ ──> │ Google frantically │  │         │
+└─────────────────────────────────────────────────────────────────────────┘         │
+         │                                                                          │
+         ▼                                                                          │
+┌─────────────────────────────────────────────────────────────────────────┐         │
+│  Check the code  │ ──> │ Implement fix │ ──> │ Test │ ──> │ Deploy │    │         │
+└─────────────────────────────────────────────────────────────────────────┘         │
+         │                                                                          │
+         ▼                                                                          │
+   Still broken? Loop back to start  ───────────────────────────────────────────────┘
+```
+
+```
+┌───────────────────┐     ┌───────────────────────┐     ┌─────────────────┐     ┌───────────────────┐      ┌─────────────────┐
+│ Read stack trace  │ ──> │ Search for solutions  │ ──> │ Check the code  │ ──> │ Implement hotfix  │  ──> │ Test and deploy │
+└───────────────────┘     └───────────────────────┘     └─────────────────┘     └───────────────────┘      └─────────────────┘
+```
+
+This workflow is predictable enough to automate, yet complex enough that simple scripts fail.
+
+Traditional AI assistants treat this as a single-shot problem. You paste an error, get a response, and hope it gets fixed entirely. But real debugging is iterative. You search, find partial answers, refine your understanding, and try again.
 
 This project aims to introduce a **state machine architecture** for incident response. Instead of a black-box agent, you get an observable, controllable workflow where each step is explicitly walked through. The agent can loop back to gather more information when its confidence is low, as well as pause for human approval before executing anything destructive.
 
