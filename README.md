@@ -12,6 +12,7 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+"></a>
   <a href="https://github.com/bipplane/devops-incident-responder/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT-green.svg" alt="Licence: MIT"></a>
   <a href="https://github.com/langchain-ai/langgraph"><img src="https://img.shields.io/badge/LangGraph-state%20machine-purple.svg" alt="LangGraph"></a>
+  <a href="https://hub.docker.com/"><img src="https://img.shields.io/badge/docker-containerised-2496ED.svg?logo=docker&logoColor=white" alt="Docker"></a>
   <a href="https://github.com/bipplane/devops-incident-responder/actions/workflows/test.yml"><img src="https://github.com/bipplane/devops-incident-responder/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
@@ -245,6 +246,47 @@ TAVILY_API_KEY=your_tavily_api_key
 ```bash
 python -m src.main
 ```
+
+## Docker
+
+Run the agent in a container without installing Python dependencies locally.
+
+### Quick Start
+
+```bash
+# Build the image
+docker build -t incident-responder .
+
+# Run with an error (pass API keys via .env file)
+docker run --env-file .env incident-responder --error "Connection refused on port 5432"
+
+# Interactive mode
+docker run -it --env-file .env incident-responder
+```
+
+### Using Docker Compose
+
+```bash
+# Run the agent
+docker compose run --rm agent
+
+# Run with arguments
+docker compose run --rm agent --error "OOMKilled: Container exceeded memory limit"
+
+# Run tests in container
+docker compose run --rm test
+```
+
+### Image Details
+
+| Property | Value |
+|----------|-------|
+| Base Image | `python:3.11-slim` |
+| Image Size | ~340MB |
+| User | Non-root (`appuser`) |
+| Health Check | Verifies imports on startup |
+
+The Dockerfile uses a **multi-stage build** to keep the final image lean. Build dependencies (gcc) are discarded after installing Python packages.
 
 ## Testing Strategy
 
