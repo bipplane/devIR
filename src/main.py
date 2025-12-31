@@ -159,42 +159,65 @@ def interactive_mode(responder: IncidentResponder):
     """Run the agent in interactive mode."""
     print_banner()
     
-    print("Choose an option:")
-    print("  [1-5] Use a sample error")
-    print("  [C]   Enter custom error")
-    print("  [Q]   Quit")
-    
     samples = get_sample_errors()
     
-    print("\nSample Errors:")
-    for key, sample in samples.items():
-        print(f"  {key}. {sample['name']}")
+    # Flush stdin to clear any buffered input (for Docker/PTY)
+    try:
+        import select
+        if sys.platform != 'win32':
+            while select.select([sys.stdin], [], [], 0)[0]:
+                sys.stdin.read(1)
+    except Exception:
+        pass
     
-    print()
-    choice = input("Enter your choice: ").strip().upper()
-    
-    if choice == "Q":
-        print("Goodbye!")
-        return
-    
-    if choice == "C":
-        print("\nPaste your error (enter a blank line when done):")
-        lines = []
-        while True:
-            try:
-                line = input()
-                if line == "":
+    # Loop until valid choice is made
+    while True:
+        print("Choose an option:")
+        print("  [1-5] Use a sample error")
+        print("  [C]   Enter custom error")
+        print("  [Q]   Quit")
+        
+        print("\nSample Errors:")
+        for key, sample in samples.items():
+            print(f"  {key}. {sample['name']}")
+        
+        print()
+        sys.stdout.flush()
+        
+        try:
+            choice = input("Enter your choice: ").strip().upper()
+        except EOFError:
+            print("\nNo input received. Exiting.")
+            return
+        
+        if choice == "":
+            print("\nNo input received. Please enter a valid choice.\n")
+            continue
+        
+        if choice == "Q":
+            print("Goodbye!")
+            return
+        
+        if choice == "C":
+            print("\nPaste your error (enter a blank line when done):")
+            lines = []
+            while True:
+                try:
+                    line = input()
+                    if line == "":
+                        break
+                    lines.append(line)
+                except EOFError:
                     break
-                lines.append(line)
-            except EOFError:
-                break
-        error_log = "\n".join(lines)
-    elif choice in samples:
-        error_log = samples[choice]["error"]
-        print(f"\nUsing sample: {samples[choice]['name']}")
-    else:
-        print("Invalid choice. Using sample 1.")
-        error_log = samples["1"]["error"]
+            error_log = "\n".join(lines)
+            break
+        elif choice in samples:
+            error_log = samples[choice]["error"]
+            print(f"\nUsing sample: {samples[choice]['name']}")
+            break
+        else:
+            print(f"\nInvalid choice '{choice}'. Please select 1-5, C, or Q.\n")
+            continue
     
     if not error_log.strip():
         print("No error provided. Exiting.")
