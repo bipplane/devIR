@@ -24,8 +24,8 @@ When prod goes down at 2am, engineers face the same repetitive process:
 
 ```
          ┌──────────────────────────────────────────────────────────────────────────┐
-         │                                                                          │                                                                          
-         ▼                                                                          │ 
+         │                                                                          │
+         ▼                                                                          │
 ┌─────────────────────────────────────────────────────────────────────────┐         │
 │  Read stack trace  │ ──> │ Diagnose issue │ ──> │ Google frantically │  │         │
 └─────────────────────────────────────────────────────────────────────────┘         │
@@ -37,12 +37,6 @@ When prod goes down at 2am, engineers face the same repetitive process:
          │                                                                          │
          ▼                                                                          │
    Still broken? Loop back to start  ───────────────────────────────────────────────┘
-```
-
-```
-┌───────────────────┐     ┌───────────────────────┐     ┌─────────────────┐     ┌───────────────────┐      ┌─────────────────┐
-│ Read stack trace  │ ──> │ Search for solutions  │ ──> │ Check the code  │ ──> │ Implement hotfix  │  ──> │ Test and deploy │
-└───────────────────┘     └───────────────────────┘     └─────────────────┘     └───────────────────┘      └─────────────────┘
 ```
 
 This workflow is predictable enough to automate, yet complex enough that simple scripts fail.
