@@ -1,0 +1,52 @@
+# =============================================================================
+# Docker Compose - DevOps Incident Responder
+# =============================================================================
+#
+# Usage:
+#   Interactive mode:   docker compose run --rm agent
+#   With error:         docker compose run --rm agent --error "Connection refused"
+#   Build only:         docker compose build
+#
+# =============================================================================
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: incident-responder:latest
+    container_name: incident-responder
+    
+    # Pass API keys from .env file
+    env_file:
+      - .env
+    
+    # Interactive mode requires TTY
+    stdin_open: true
+    tty: true
+    
+    # Optional: Mount local directory for file reading
+    # Uncomment to allow the agent to read your project files
+    # volumes:
+    #   - ./sample_project:/app/target:ro
+    
+    # Resource limits (good practice for LLM workloads)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Test runner service
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder  # Use builder stage which has test deps
+    volumes:
+      - ./tests:/app/tests:ro
+      - ./src:/app/src:ro
+    command: pytest tests/ -v --tb=short
+    env_file:
+      - .env
