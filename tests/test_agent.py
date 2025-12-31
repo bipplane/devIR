@@ -2,11 +2,19 @@
 Tests for the DevOps Incident Responder Agent
 
 Run with: pytest tests/ -v
+
+Test Coverage:
+- State management and initialisation
+- JSON parsing resilience (LLM drift handling)
+- Legacy text parsing (fallback)
+- Node logic with mocked LLM calls
+- Security: path traversal and file access controls
 """
 
 import pytest
+from unittest.mock import MagicMock, patch
 from src.state import AgentState, create_initial_state
-from src.nodes import parse_llm_response
+from src.nodes import parse_llm_response, parse_json_response
 
 
 class TestAgentState:
@@ -28,6 +36,68 @@ class TestAgentState:
         """Test custom max_iterations setting."""
         state = create_initial_state("error", max_iterations=5)
         assert state["max_iterations"] == 5
+
+
+class TestJSONParsing:
+    """Tests for JSON response parsing."""
+    
+    def test_parse_clean_json(self):
+        """Test parsing a clean JSON response."""
+        response = '{"error_type": "database", "severity": "high"}'
+        parsed = parse_json_response(response)
+        
+        assert parsed["error_type"] == "database"
+        assert parsed["severity"] == "high"
+    
+    def test_parse_json_with_thinking_tags(self):
+        """Test parsing JSON with <thinking> tags."""
+        response = """<thinking>
+Let me analyse this error...
+It looks like a database connection issue.
+</thinking>
+
+{"error_type": "database", "severity": "high", "error_summary": "Connection failed"}"""
+        parsed = parse_json_response(response)
+        
+        assert parsed["error_type"] == "database"
+        assert parsed["severity"] == "high"
+        assert parsed["error_summary"] == "Connection failed"
+    
+    def test_parse_json_with_markdown_blocks(self):
+        """Test parsing JSON wrapped in markdown code blocks."""
+        response = """Here is the analysis:
+
+```json
+{"error_type": "network", "confidence": 0.85}
+```
+
+Let me know if you need more details."""
+        parsed = parse_json_response(response)
+        
+        assert parsed["error_type"] == "network"
+        assert parsed["confidence"] == 0.85
+    
+    def test_parse_json_with_nested_objects(self):
+        """Test parsing JSON with nested objects and arrays."""
+        response = """{
+    "error_type": "configuration",
+    "search_keywords": ["docker config", "env vars"],
+    "relevant_solutions": [
+        {"source_url": "https://example.com", "confidence": "high"}
+    ]
+}"""
+        parsed = parse_json_response(response)
+        
+        assert parsed["error_type"] == "configuration"
+        assert len(parsed["search_keywords"]) == 2
+        assert parsed["relevant_solutions"][0]["confidence"] == "high"
+    
+    def test_parse_invalid_json_returns_empty(self):
+        """Test that invalid JSON returns an empty dict."""
+        response = "This is not valid JSON at all"
+        parsed = parse_json_response(response)
+        
+        assert parsed == {}
 
 
 class TestLLMResponseParsing:
@@ -138,10 +208,10 @@ class TestNodeLogic:
 
 
 class TestToolSafety:
-    """Tests for tool safety features."""
+    """Tests for tool safety features (DevSecOps)."""
     
     def test_file_tool_blocks_env_files(self):
-        """Test that .env files are blocked."""
+        """Test that .env files are blocked - prevents credential leakage."""
         from src.tools.file_tool import FileReaderTool
         
         tool = FileReaderTool(base_directory=".")
@@ -171,10 +241,168 @@ class TestToolSafety:
         assert ".py" in tool.ALLOWED_EXTENSIONS
         assert ".js" in tool.ALLOWED_EXTENSIONS
         assert ".yml" in tool.ALLOWED_EXTENSIONS
+    
+    def test_file_tool_blocks_path_traversal(self):
+        """Test that path traversal attacks are blocked."""
+        from src.tools.file_tool import FileReaderTool
+        
+        tool = FileReaderTool(base_directory="/app")
+        
+        from pathlib import Path
+        # Attempts to escape the base directory
+        assert not tool._is_safe_path(Path("../../../etc/passwd"))
+        assert not tool._is_safe_path(Path("/etc/passwd"))
+
+
+class TestNodesMocked:
+    """
+    Test actual node functions with mocked LLM.
+    
+    This proves the node logic works without making API calls.
+    Essential for CI/CD pipelines and cost control.
+    """
+    
+    def test_diagnostician_parses_json_response(self):
+        """Test diagnostician node correctly parses LLM JSON output."""
+        from src.nodes import NodeFactory
+        
+        # Create a mock LLM
+        mock_llm = MagicMock()
+        mock_llm.generate.return_value = '''{
+            "error_type": "database",
+            "severity": "high",
+            "error_summary": "PostgreSQL connection refused",
+            "affected_components": ["database", "api"],
+            "search_keywords": ["postgres connection refused docker"],
+            "files_to_check": ["docker-compose.yml"],
+            "immediate_actions": ["Check if database container is running"]
+        }'''
+        
+        # Create factory with mocked dependencies
+        factory = NodeFactory(
+            llm=mock_llm,
+            search_tool=MagicMock(),
+            file_tool=MagicMock(),
+            verbose=False
+        )
+        
+        # Create test state
+        state = create_initial_state("psycopg2.OperationalError: connection refused")
+        
+        # Run the node
+        result = factory.diagnostician(state)
+        
+        # Verify results
+        assert result["error_type"] == "database"
+        assert result["error_summary"] == "PostgreSQL connection refused"
+        assert "database" in result["affected_components"]
+        assert len(result["search_queries"]) > 0
+        assert result["status"] == "researching"
+        
+        # Verify the error log was passed to the LLM
+        call_args = mock_llm.generate.call_args
+        assert "connection refused" in call_args.kwargs.get("prompt", "")
+    
+    def test_diagnostician_handles_malformed_json(self):
+        """Test diagnostician gracefully handles malformed LLM output."""
+        from src.nodes import NodeFactory
+        
+        # LLM returns garbage
+        mock_llm = MagicMock()
+        mock_llm.generate.return_value = "ERROR_TYPE: database\nERROR_SUMMARY: Connection failed"
+        
+        factory = NodeFactory(
+            llm=mock_llm,
+            search_tool=MagicMock(),
+            file_tool=MagicMock(),
+            verbose=False
+        )
+        
+        state = create_initial_state("Some error")
+        result = factory.diagnostician(state)
+        
+        # Should fall back to legacy parsing
+        assert result["error_type"] == "database"
+        assert "Connection failed" in result["error_summary"]
+    
+    def test_solver_extracts_confidence_score(self):
+        """Test solver correctly extracts confidence from JSON."""
+        from src.nodes import NodeFactory
+        
+        mock_llm = MagicMock()
+        mock_llm.generate.return_value = '''{
+            "root_cause": "Database container not running",
+            "confidence_score": 0.85,
+            "solution_summary": "Start the database container",
+            "step_by_step": ["Run docker-compose up -d db"],
+            "executable_commands": ["docker-compose up -d db"],
+            "file_changes": [],
+            "requires_approval": false,
+            "rollback_steps": ["docker-compose down"],
+            "prevention": "Add health checks",
+            "verification": "Check logs"
+        }'''
+        
+        factory = NodeFactory(
+            llm=mock_llm,
+            search_tool=MagicMock(),
+            file_tool=MagicMock(),
+            verbose=False
+        )
+        
+        state = create_initial_state("error")
+        state["error_summary"] = "Connection refused"
+        state["error_type"] = "database"
+        state["research_findings"] = ["Use docker-compose"]
+        state["code_context"] = "No code"
+        
+        result = factory.solver(state)
+        
+        assert result["solution_confidence"] == 0.85
+        assert result["status"] == "complete"
+        assert not result["needs_human_approval"]
+    
+    def test_solver_flags_dangerous_operations(self):
+        """Test solver correctly flags operations needing approval."""
+        from src.nodes import NodeFactory
+        
+        mock_llm = MagicMock()
+        mock_llm.generate.return_value = '''{
+            "root_cause": "Corrupted database",
+            "confidence_score": 0.9,
+            "solution_summary": "Drop and recreate the table",
+            "step_by_step": ["Backup data", "Drop table", "Recreate"],
+            "executable_commands": ["DROP TABLE users;"],
+            "file_changes": [],
+            "requires_approval": true,
+            "approval_reason": "Destructive database operation",
+            "rollback_steps": ["Restore from backup"],
+            "prevention": "Add migrations",
+            "verification": "Query the table"
+        }'''
+        
+        factory = NodeFactory(
+            llm=mock_llm,
+            search_tool=MagicMock(),
+            file_tool=MagicMock(),
+            verbose=False
+        )
+        
+        state = create_initial_state("error")
+        state["error_summary"] = "Table corrupted"
+        state["error_type"] = "database"
+        state["research_findings"] = []
+        state["code_context"] = ""
+        
+        result = factory.solver(state)
+        
+        assert result["needs_human_approval"] == True
+        assert result["status"] == "awaiting_approval"
+        assert "Destructive" in result["pending_action"]
 
 
 # Integration test (requires API keys)
-@pytest.mark.skipif(True, reason="Requires API keys")
+@pytest.mark.skipif(True, reason="Requires API keys - run manually with: pytest tests/ -v -k Integration")
 class TestIntegration:
     """Integration tests that require real API calls."""
     
