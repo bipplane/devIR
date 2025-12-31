@@ -1,11 +1,13 @@
 """
-Graph Nodes Module
+Graph Nodes Module v2.0
 
 Contains all the node functions for the LangGraph workflow.
 Each node represents a step in the incident investigation pipeline.
+Uses JSON parsing for structured LLM outputs.
 """
 
 import re
+import json
 from typing import Dict, Any, Optional, List
 from .state import AgentState
 from .llm import BaseLLM, get_llm
@@ -13,9 +15,48 @@ from .tools import TavilySearchTool, FileReaderTool
 from . import prompts
 
 
+def parse_json_response(response: str) -> Dict[str, Any]:
+    """
+    Parse a JSON response from the LLM.
+    
+    Handles common issues like:
+    - <thinking> tags before JSON
+    - Markdown code blocks around JSON
+    - Trailing text after JSON
+    
+    Args:
+        response: The raw LLM response text
+        
+    Returns:
+        Parsed JSON as a dictionary
+    """
+    # Remove <thinking>...</thinking> blocks
+    cleaned = re.sub(r'<thinking>.*?</thinking>', '', response, flags=re.DOTALL)
+    
+    # Remove markdown code blocks
+    cleaned = re.sub(r'```json\s*', '', cleaned)
+    cleaned = re.sub(r'```\s*', '', cleaned)
+    
+    # Find JSON object in the response
+    # Look for the first { and last }
+    start = cleaned.find('{')
+    end = cleaned.rfind('}')
+    
+    if start != -1 and end != -1 and end > start:
+        json_str = cleaned[start:end + 1]
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+    
+    # Fallback: return empty dict if parsing fails
+    return {}
+
+
 def parse_llm_response(response: str, fields: List[str]) -> Dict[str, str]:
     """
-    Parse a structured LLM response into a dictionary.
+    Legacy parser for structured LLM responses.
+    Falls back to this if JSON parsing fails.
     
     Args:
         response: The raw LLM response text
@@ -100,41 +141,48 @@ class NodeFactory:
             system_prompt=prompts.DIAGNOSTICIAN_SYSTEM
         )
         
-        # Parse the structured response
-        parsed = parse_llm_response(response, [
-            "ERROR_TYPE",
-            "ERROR_SUMMARY", 
-            "AFFECTED_COMPONENTS",
-            "SEARCH_QUERIES",
-            "FILES_TO_CHECK",
-            "SEVERITY",
-            "IMMEDIATE_ACTIONS"
-        ])
+        # Parse JSON response (with fallback to legacy parsing)
+        parsed = parse_json_response(response)
         
-        # Extract search queries as a list
-        search_queries = [
-            q.strip() 
-            for q in parsed.get("search_queries", "").split(",")
-            if q.strip()
-        ]
-        
-        # Extract files to check as a list
-        files_to_check = [
-            f.strip().strip('"').strip("'")
-            for f in parsed.get("files_to_check", "").split(",")
-            if f.strip()
-        ]
-        
-        # Extract affected components as a list
-        affected_components = [
-            c.strip()
-            for c in parsed.get("affected_components", "").split(",")
-            if c.strip()
-        ]
+        if not parsed:
+            # Fallback to legacy text parsing
+            parsed = parse_llm_response(response, [
+                "ERROR_TYPE",
+                "ERROR_SUMMARY", 
+                "AFFECTED_COMPONENTS",
+                "SEARCH_QUERIES",
+                "FILES_TO_CHECK",
+                "SEVERITY",
+                "IMMEDIATE_ACTIONS"
+            ])
+            # Legacy parsing returns strings, need to split into lists
+            search_queries = [
+                q.strip() 
+                for q in parsed.get("search_queries", "").split(",")
+                if q.strip()
+            ]
+            files_to_check = [
+                f.strip().strip('"').strip("'")
+                for f in parsed.get("files_to_check", "").split(",")
+                if f.strip()
+            ]
+            affected_components = [
+                c.strip()
+                for c in parsed.get("affected_components", "").split(",")
+                if c.strip()
+            ]
+        else:
+            # JSON parsing returns proper types
+            search_queries = parsed.get("search_keywords", [])
+            files_to_check = parsed.get("files_to_check", [])
+            affected_components = parsed.get("affected_components", [])
         
         # Log the findings
-        self._log(f"\n[OK] Error Type: {parsed.get('error_type', 'unknown')}")
-        self._log(f"Summary: {parsed.get('error_summary', 'N/A')}")
+        error_type = parsed.get("error_type", "unknown")
+        error_summary = parsed.get("error_summary", "N/A")
+        
+        self._log(f"\n[OK] Error Type: {error_type}")
+        self._log(f"Summary: {error_summary}")
         if search_queries:
             self._log("Will search for:")
             for i, q in enumerate(search_queries[:3], 1):
@@ -142,8 +190,8 @@ class NodeFactory:
         
         # Return state updates
         return {
-            "error_type": parsed.get("error_type", "unknown"),
-            "error_summary": parsed.get("error_summary", "Unable to summarise error"),
+            "error_type": error_type,
+            "error_summary": error_summary,
             "affected_components": affected_components,
             "search_queries": search_queries[:5],
             "files_to_check": files_to_check,
@@ -201,29 +249,51 @@ class NodeFactory:
             system_prompt=prompts.WEBSCRAPER_SYSTEM
         )
         
-        # Parse response
-        parsed = parse_llm_response(response, [
-            "RELEVANT_FINDINGS",
-            "COMMON_SOLUTIONS",
-            "POTENTIAL_PITFALLS",
-            "CONFIDENCE_LEVEL",
-            "NEED_MORE_RESEARCH",
-            "REFINED_QUERY"
-        ])
+        # Parse JSON response (with fallback)
+        parsed = parse_json_response(response)
+        
+        if not parsed:
+            # Fallback to legacy text parsing
+            parsed = parse_llm_response(response, [
+                "RELEVANT_FINDINGS",
+                "COMMON_SOLUTIONS",
+                "POTENTIAL_PITFALLS",
+                "CONFIDENCE_LEVEL",
+                "NEED_MORE_RESEARCH",
+                "REFINED_QUERY"
+            ])
+            need_more = parsed.get("need_more_research", "no").lower() == "yes"
+            refined_query = parsed.get("refined_query", "")
+            new_findings = [
+                parsed.get("relevant_findings", ""),
+                parsed.get("common_solutions", "")
+            ]
+        else:
+            # JSON response
+            need_more = parsed.get("needs_more_research", False)
+            refined_query = parsed.get("refined_query") or ""
+            
+            # Format solutions with source attribution
+            solutions = parsed.get("relevant_solutions", [])
+            findings_text = "\n".join([
+                f"- {s.get('solution_summary', '')} (Source: {s.get('source_url', 'unknown')}, Confidence: {s.get('confidence', 'unknown')})"
+                for s in solutions
+            ])
+            patterns = ", ".join(parsed.get("common_patterns", []))
+            warnings = ", ".join(parsed.get("warnings", []))
+            
+            new_findings = [
+                f"Solutions:\n{findings_text}",
+                f"Common patterns: {patterns}",
+                f"Warnings: {warnings}"
+            ]
         
         # Update research findings
         existing_findings = state.get("research_findings", [])
-        new_findings = [
-            parsed.get("relevant_findings", ""),
-            parsed.get("common_solutions", "")
-        ]
         
         # Handle refinement loop
         iterations = state.get("iterations", 0) + 1
         max_iterations = state.get("max_iterations", 3)
-        
-        need_more = parsed.get("need_more_research", "no").lower() == "yes"
-        refined_query = parsed.get("refined_query", "")
         
         # If we need more research and haven't hit max iterations
         if need_more and refined_query and iterations < max_iterations:
@@ -339,32 +409,89 @@ class NodeFactory:
             system_prompt=prompts.SOLVER_SYSTEM
         )
         
-        # Parse response
-        parsed = parse_llm_response(response, [
-            "DIAGNOSIS_SUMMARY",
-            "SOLUTION_CONFIDENCE",
-            "PROPOSED_SOLUTION",
-            "STEP_BY_STEP",
-            "CODE_CHANGES",
-            "COMMANDS_TO_RUN",
-            "REQUIRES_APPROVAL",
-            "APPROVAL_REASON",
-            "PREVENTION",
-            "VERIFICATION"
-        ])
+        # Parse JSON response (with fallback)
+        parsed = parse_json_response(response)
         
-        # Parse confidence score
-        try:
-            confidence = float(parsed.get("solution_confidence", "0.5"))
-        except ValueError:
-            confidence = 0.5
+        if not parsed:
+            # Fallback to legacy text parsing
+            parsed = parse_llm_response(response, [
+                "DIAGNOSIS_SUMMARY",
+                "SOLUTION_CONFIDENCE",
+                "PROPOSED_SOLUTION",
+                "STEP_BY_STEP",
+                "CODE_CHANGES",
+                "COMMANDS_TO_RUN",
+                "REQUIRES_APPROVAL",
+                "APPROVAL_REASON",
+                "PREVENTION",
+                "VERIFICATION"
+            ])
+            # Parse confidence score
+            try:
+                confidence = float(parsed.get("solution_confidence", "0.5"))
+            except ValueError:
+                confidence = 0.5
             
-        # Parse steps
-        steps_text = parsed.get("step_by_step", "")
-        steps = [s.strip() for s in re.findall(r'\d+\.\s*(.+)', steps_text)]
-        
-        # Check if approval needed
-        requires_approval = parsed.get("requires_approval", "no").lower() == "yes"
+            # Parse steps
+            steps_text = parsed.get("step_by_step", "")
+            steps = [s.strip() for s in re.findall(r'\d+\.\s*(.+)', steps_text)]
+            
+            requires_approval = parsed.get("requires_approval", "no").lower() == "yes"
+            proposed_solution = parsed.get("proposed_solution", response)
+            code_changes = parsed.get("code_changes", "")
+            approval_reason = parsed.get("approval_reason", "")
+        else:
+            # JSON response - structured data
+            confidence = parsed.get("confidence_score", 0.5)
+            steps = parsed.get("step_by_step", [])
+            requires_approval = parsed.get("requires_approval", False)
+            approval_reason = parsed.get("approval_reason") or ""
+            
+            # Build human-readable solution from JSON
+            root_cause = parsed.get("root_cause", "")
+            solution_summary = parsed.get("solution_summary", "")
+            commands = parsed.get("executable_commands", [])
+            file_changes = parsed.get("file_changes", [])
+            prevention = parsed.get("prevention", "")
+            verification = parsed.get("verification", "")
+            
+            # Format proposed solution for display
+            solution_parts = [root_cause, "", solution_summary, ""]
+            
+            if steps:
+                solution_parts.append("Steps:")
+                for i, step in enumerate(steps, 1):
+                    solution_parts.append(f"  {i}. {step}")
+                solution_parts.append("")
+            
+            if commands:
+                solution_parts.append("Commands to run:")
+                for cmd in commands:
+                    solution_parts.append(f"  $ {cmd}")
+                solution_parts.append("")
+            
+            if file_changes:
+                solution_parts.append("File changes:")
+                for fc in file_changes:
+                    solution_parts.append(f"  - {fc.get('file_path', 'unknown')}: {fc.get('description', '')}")
+                solution_parts.append("")
+            
+            if prevention:
+                solution_parts.append(f"Prevention: {prevention}")
+            if verification:
+                solution_parts.append(f"Verification: {verification}")
+            
+            proposed_solution = "\n".join(solution_parts)
+            
+            # Format code changes
+            code_changes_parts = []
+            for fc in file_changes:
+                if fc.get("before") and fc.get("after"):
+                    code_changes_parts.append(f"File: {fc.get('file_path', 'unknown')}")
+                    code_changes_parts.append(f"Before:\n{fc.get('before', '')}")
+                    code_changes_parts.append(f"After:\n{fc.get('after', '')}")
+                    code_changes_parts.append("---")
+            code_changes = "\n".join(code_changes_parts)
         
         self._log(f"\n[OK] Solution confidence: {confidence:.0%}")
         
@@ -379,12 +506,12 @@ class NodeFactory:
             status = "complete"
         
         return {
-            "proposed_solution": parsed.get("proposed_solution", response),
+            "proposed_solution": proposed_solution,
             "solution_confidence": confidence,
             "solution_steps": steps,
-            "code_changes": parsed.get("code_changes", ""),
+            "code_changes": code_changes,
             "needs_human_approval": requires_approval,
-            "pending_action": parsed.get("approval_reason", ""),
+            "pending_action": approval_reason,
             "messages": state.get("messages", []) + [f"[Solver] {response}"],
             "status": status
         }
