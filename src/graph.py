@@ -37,7 +37,7 @@ def create_incident_responder_graph(
            │
            ▼
     ┌─────────────┐     ┌────────────────┐
-    │ Researcher  │ ◄───┤ Loop back if   │
+    │ Webscraper  │ ◄───┤ Loop back if   │
     └──────┬──────┘     │ need more info │
            │            └────────────────┘
            ▼
@@ -86,7 +86,7 @@ def create_incident_responder_graph(
     # ==========================================================================
     
     workflow.add_node("diagnose", factory.diagnostician)
-    workflow.add_node("research", factory.researcher)
+    workflow.add_node("research", factory.webscraper)
     workflow.add_node("audit", factory.code_auditor)
     workflow.add_node("solve", factory.solver)
     workflow.add_node("human_approval", factory.human_approval)

@@ -66,7 +66,7 @@ flowchart TB
     end
 
     subgraph Investigation
-        B --> C[Researcher]
+        B --> C[Webscraper]
         C --> D[Code Auditor]
         D --> E[Solver]
     end
@@ -124,7 +124,7 @@ classDiagram
 
     class NodeFactory {
         +diagnostician(state) Dict
-        +researcher(state) Dict
+        +webscraper(state) Dict
         +code_auditor(state) Dict
         +solver(state) Dict
         +human_approval(state) Dict
@@ -163,7 +163,7 @@ class AgentState(TypedDict):
 
 ### Cyclical Graph Flows
 
-Real debugging is iterative. If the Solver produces a low-confidence answer, the graph loops back to the Researcher with a refined query. This self-correction continues until either (1) confidence exceeds the threshold, (2) max iterations are reached, or (3) the solution is accepted.
+Real debugging is iterative. If the Solver produces a low-confidence answer, the graph loops back to the Webscraper with a refined query. This self-correction continues until either (1) confidence exceeds the threshold, (2) max iterations are reached, or (3) the solution is accepted.
 
 ```python
 def check_solution_confidence(state: AgentState) -> str:

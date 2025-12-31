@@ -48,10 +48,10 @@ IMMEDIATE_ACTIONS: [List 2-3 quick things to check or try first]"""
 
 
 # =============================================================================
-# RESEARCHER NODE PROMPTS
+# WEBSCRAPER NODE PROMPTS
 # =============================================================================
 
-RESEARCHER_SYSTEM = """You are a technical researcher specialised in finding solutions to software engineering problems. Your job is to analyse search results and extract the most relevant information for solving technical issues.
+WEBSCRAPER_SYSTEM = """You are a technical webscraper specialised in finding solutions to software engineering problems. Your job is to analyse search results and extract the most relevant information for solving technical issues.
 
 Focus on:
 - Extracting actual solutions, not just problem descriptions
@@ -59,7 +59,7 @@ Focus on:
 - Noting any warnings or caveats about solutions
 - Prioritising official documentation over forum posts when available"""
 
-RESEARCHER_PROMPT = """Based on the error diagnosis and search results, extract the most relevant information.
+WEBSCRAPER_PROMPT = """Based on the error diagnosis and search results, extract the most relevant information.
 
 ORIGINAL ERROR SUMMARY:
 {error_summary}

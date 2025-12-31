@@ -152,10 +152,10 @@ class NodeFactory:
         }
     
     # =========================================================================
-    # NODE 2: RESEARCHER
+    # NODE 2: WEBSCRAPER
     # =========================================================================
     
-    def researcher(self, state: AgentState) -> Dict[str, Any]:
+    def webscraper(self, state: AgentState) -> Dict[str, Any]:
         """
         Search the web for solutions and relevant documentation.
         
@@ -163,7 +163,7 @@ class NodeFactory:
         documentation that might help solve the issue.
         """
         self._log("\n" + "="*60)
-        self._log("RESEARCHER NODE - Searching for solutions...")
+        self._log("WEBSCRAPER NODE - Searching for solutions...")
         self._log("="*60)
         
         all_results = []
@@ -177,10 +177,11 @@ class NodeFactory:
         # Execute each search query
         for query in queries:
             try:
-                results = self.search_tool.search_technical(query, max_results=3)
+                results = self.search_tool.search_technical(query, max_results=5)
                 for result in results:
                     all_results.append(f"[{result.title}]({result.url})\n{result.content}")
                     self._log(f"  Found: {result.title}")
+                    self._log(f"         {result.url}")
             except Exception as e:
                 self._log(f"  [WARN] Search failed: {e}")
                 all_results.append(f"Search for '{query}' failed: {str(e)}")
@@ -189,7 +190,7 @@ class NodeFactory:
         search_results_text = "\n\n---\n\n".join(all_results) if all_results else "No search results found."
         
         # Ask LLM to analyse findings
-        prompt = prompts.RESEARCHER_PROMPT.format(
+        prompt = prompts.WEBSCRAPER_PROMPT.format(
             error_summary=state.get("error_summary", ""),
             error_type=state.get("error_type", "unknown"),
             search_results=search_results_text
@@ -197,7 +198,7 @@ class NodeFactory:
         
         response = self.llm.generate(
             prompt=prompt,
-            system_prompt=prompts.RESEARCHER_SYSTEM
+            system_prompt=prompts.WEBSCRAPER_SYSTEM
         )
         
         # Parse response
@@ -233,7 +234,7 @@ class NodeFactory:
                 "research_findings": existing_findings + new_findings,
                 "search_queries": [refined_query],
                 "iterations": iterations,
-                "messages": state.get("messages", []) + [f"[Researcher] {response}"],
+                "messages": state.get("messages", []) + [f"[Webscraper] {response}"],
                 "status": "researching"  # Stay in research loop
             }
         
@@ -243,7 +244,7 @@ class NodeFactory:
             "research_findings": existing_findings + new_findings,
             "relevant_docs": [search_results_text],
             "iterations": iterations,
-            "messages": state.get("messages", []) + [f"[Researcher] {response}"],
+            "messages": state.get("messages", []) + [f"[Webscraper] {response}"],
             "status": "auditing"
         }
     
@@ -420,7 +421,7 @@ class NodeFactory:
 
 def should_continue_research(state: AgentState) -> str:
     """
-    Determine if the researcher should loop back for more searches.
+    Determine if the webscraper should loop back for more searches.
     
     Returns:
         "research" to continue searching
