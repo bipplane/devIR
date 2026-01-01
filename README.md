@@ -43,7 +43,7 @@ This workflow is predictable enough to automate, yet complex enough that simple 
 
 Traditional AI assistants treat this as a single-shot problem. You paste an error, get a response, and hope it gets fixed entirely. But real debugging is iterative. You search, find partial answers, refine your understanding, and try again.
 
-## Proposed Solution
+## Project Overview
 
 This project aims to introduce a **state machine architecture** for incident response. Instead of a black-box agent, you get an **observable, controllable workflow** where each step is **explicitly walked through**. The agent can loop back to gather more information when its confidence is low, as well as pause for human approval before executing anything destructive.
 
